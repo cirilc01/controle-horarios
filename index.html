@@ -1,0 +1,404 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Controle de Horários</title>
+<style>
+:root {
+  --azul:#123e68; --azul2:#0879c9; --fundo:#f2f6fb;
+  --borda:#d9e4ef; --verde:#168451; --vermelho:#c43e45;
+}
+* { box-sizing:border-box }
+body {
+  margin:0; background:var(--fundo); color:#18334d;
+  font:15px Arial, sans-serif;
+}
+header {
+  background:linear-gradient(120deg,#102e50,#0866a9);
+  color:white; padding:24px max(18px,calc((100% - 1150px)/2));
+}
+header h1 { margin:0 0 8px; font-size:25px }
+header p { margin:0; opacity:.9 }
+main { max-width:1150px; margin:22px auto; padding:0 14px }
+.card {
+  background:white; border:1px solid var(--borda);
+  border-radius:12px; padding:18px; margin-bottom:16px;
+  box-shadow:0 2px 8px #173b5c0b;
+}
+h2 { font-size:18px; margin:0 0 16px }
+.grid {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+.metrics .card { margin:0; padding:16px }
+.metric-label { color:#5e7286; font-size:13px }
+.metric { font-size:23px; font-weight:bold; margin-top:9px }
+.formgrid {
+  display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:14px;
+}
+label { display:block; font-weight:bold; font-size:13px; margin-bottom:6px }
+input,textarea,select {
+  width:100%; border:1px solid #c9d7e5; border-radius:7px;
+  padding:11px; background:white; color:#18334d; font:inherit;
+}
+textarea { min-height:70px; resize:vertical }
+button {
+  border:0; border-radius:7px; padding:11px 15px;
+  background:var(--azul2); color:white; font-weight:bold;
+  cursor:pointer; margin:4px 4px 0 0;
+}
+button.secondary { background:#e7eef6; color:#18334d }
+button.danger { background:#b93840 }
+.actions { margin-top:14px }
+.note { color:#64788c; font-size:13px; line-height:1.5 }
+.status { margin:10px 0; font-weight:bold; overflow-wrap:anywhere }
+table { border-collapse:collapse; width:100%; min-width:680px }
+th,td { padding:11px 9px; border-bottom:1px solid #e4ebf2; text-align:left }
+th { background:#eaf2fa; color:#173e65; font-size:13px }
+td { font-size:14px }
+.tablewrap { overflow-x:auto }
+.empty { color:#718398; text-align:center; padding:24px }
+.summary { display:grid; grid-template-columns:1fr 1fr; gap:14px }
+.small { font-size:12px; color:#687c90 }
+footer { text-align:center; color:#738398; padding:20px; font-size:12px }
+@media(max-width:760px) {
+  .grid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .formgrid { grid-template-columns:repeat(2,minmax(0,1fr)) }
+  .summary { grid-template-columns:1fr }
+  header h1 { font-size:21px }
+}
+@media(max-width:420px) {
+  .formgrid { grid-template-columns:1fr }
+  .metric { font-size:20px }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Controle de Horários de Trabalho</h1>
+  <p>Registre sua jornada e acompanhe suas horas diárias, semanais e mensais.</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Configurações e conexão</h2>
+    <div class="formgrid">
+      <div>
+        <label for="apiUrl">URL do Apps Script (/exec)</label>
+        <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div>
+        <label for="pin">PIN de acesso</label>
+        <input id="pin" type="password" autocomplete="current-password">
+      </div>
+      <div>
+        <label for="jornada">Jornada prevista por dia</label>
+        <input id="jornada" type="text" value="08:00" placeholder="08:00">
+      </div>
+      <div>
+        <label for="mes">Mês do resumo</label>
+        <input id="mes" type="month">
+      </div>
+    </div>
+    <div class="actions">
+      <button id="conectar">Conectar e carregar registros</button>
+      <button class="secondary" id="salvarConfig">Salvar configurações neste dispositivo</button>
+    </div>
+    <div id="status" class="status" role="status">Informe a URL publicada e seu PIN.</div>
+    <p class="note">A URL e a jornada podem ficar salvas neste dispositivo. O PIN não é salvo pelo sistema. Não compartilhe seu PIN.</p>
+  </section>
+
+  <section class="grid metrics">
+    <div class="card"><div class="metric-label">Total de hoje</div><div class="metric" id="totalHoje">00h00</div></div>
+    <div class="card"><div class="metric-label">Total da semana</div><div class="metric" id="totalSemana">00h00</div></div>
+    <div class="card"><div class="metric-label">Total do mês</div><div class="metric" id="totalMes">00h00</div></div>
+    <div class="card"><div class="metric-label">Saldo do mês</div><div class="metric" id="saldoMes">00h00</div></div>
+  </section>
+
+  <section class="card" style="margin-top:16px">
+    <h2 id="tituloFormulario">Registrar horário</h2>
+    <div class="formgrid">
+      <div><label for="data">Data</label><input id="data" type="date" required></div>
+      <div><label for="entrada">Hora de entrada</label><input id="entrada" type="time" required></div>
+      <div><label for="saida">Hora de saída</label><input id="saida" type="time" required></div>
+      <div><label for="observacoes">Observações</label><input id="observacoes" maxlength="500" placeholder="Opcional"></div>
+    </div>
+    <div class="actions">
+      <button id="gravar">Gravar registro</button>
+      <button id="cancelar" class="secondary" hidden>Cancelar edição</button>
+    </div>
+    <p class="note">O cálculo considera o intervalo entre entrada e saída, sem descontar almoço. Jornadas que atravessam a meia-noite não são aceitas nesta versão.</p>
+  </section>
+
+  <section class="card">
+    <h2>Histórico de registros</h2>
+    <div class="formgrid">
+      <div><label for="inicio">De</label><input type="date" id="inicio"></div>
+      <div><label for="fim">Até</label><input type="date" id="fim"></div>
+      <div style="align-self:end"><button id="filtrar">Filtrar histórico</button></div>
+      <div style="align-self:end"><button id="limparFiltro" class="secondary">Limpar filtro</button></div>
+    </div>
+    <div class="tablewrap" style="margin-top:16px">
+      <table>
+        <thead><tr>
+          <th>Data</th><th>Entrada</th><th>Saída</th>
+          <th>Horas</th><th>Observações</th><th>Ações</th>
+        </tr></thead>
+        <tbody id="historico"><tr><td colspan="6" class="empty">Conecte-se para carregar os registros.</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="summary">
+    <div class="card">
+      <h2>Resumo semanal</h2>
+      <p id="periodoSemana" class="note">Semana atual</p>
+      <div class="metric" id="resumoSemana">00h00</div>
+      <p id="saldoSemana" class="note"></p>
+    </div>
+    <div class="card">
+      <h2>Resumo mensal</h2>
+      <p id="periodoMes" class="note"></p>
+      <div class="metric" id="resumoMes">00h00</div>
+      <p id="diasMes" class="note"></p>
+    </div>
+  </section>
+</main>
+
+<footer>Controle pessoal de horários • Versão 1.0</footer>
+
+<script>
+'use strict';
+
+const $ = id => document.getElementById(id);
+let registros = [];
+let idEdicao = null;
+let carregado = false;
+let sequencia = 0;
+
+const hojeISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const deslocarData = (iso, dias) => {
+  const d = new Date(iso + 'T12:00:00');
+  d.setDate(d.getDate() + dias);
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+};
+const minutos = hora => {
+  if (!/^\d{2}:\d{2}$/.test(hora || '')) throw Error('Informe um horário válido.');
+  const [h,m] = hora.split(':').map(Number);
+  if (h > 23 || m > 59) throw Error('Horário inválido.');
+  return h*60+m;
+};
+const duracao = r => minutos(r.saida)-minutos(r.entrada);
+const formatar = n => {
+  const sinal = n < 0 ? '-' : '';
+  n = Math.abs(Math.round(n));
+  return sinal + String(Math.floor(n/60)).padStart(2,'0') + 'h' +
+         String(n%60).padStart(2,'0');
+};
+const dataBR = iso => iso ? iso.split('-').reverse().join('/') : '';
+const seguro = s => String(s ?? '').replace(/[&<>"']/g, c => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+const status = (texto, erro=false) => {
+  $('status').textContent = texto;
+  $('status').style.color = erro ? '#b93840' : '#168451';
+};
+const jornadaMin = () => minutos($('jornada').value.trim());
+
+function jsonp(params) {
+  return new Promise((resolve,reject) => {
+    const url = $('apiUrl').value.trim();
+    if (!url.startsWith('https://script.google.com/')) {
+      reject(Error('Informe a URL HTTPS do Apps Script.'));
+      return;
+    }
+    const callback = '__respostaJSONP' + (++sequencia);
+    const script = document.createElement('script');
+    const timer = setTimeout(() => finalizar(Error('Tempo esgotado ao acessar o serviço.')),20000);
+    function finalizar(erro, valor) {
+      clearTimeout(timer);
+      delete window[callback];
+      script.remove();
+      if (erro) reject(erro); else resolve(valor);
+    }
+    window[callback] = valor => finalizar(null,valor);
+    const query = new URLSearchParams({...params,callback}).toString();
+    script.onerror = () => finalizar(Error('Falha ao acessar o Apps Script. Verifique a implantação.'));
+    script.src = url + (url.includes('?')?'&':'?') + query;
+    document.body.appendChild(script);
+  });
+}
+
+function parametros(acao, extra={}) {
+  return {acao, pin:$('pin').value, ...extra};
+}
+
+async function conectar() {
+  try {
+    jornadaMin();
+    if (!$('pin').value.trim()) throw Error('Digite o PIN configurado no Apps Script.');
+    status('Conectando...');
+    const resposta = await jsonp(parametros('listar'));
+    if (!resposta.ok) throw Error(resposta.erro || 'Não foi possível carregar os dados.');
+    registros = resposta.registros || [];
+    carregado = true;
+    renderizar();
+    status('Conectado. Registros carregados: ' + registros.length + '.');
+  } catch(e) {
+    status(e.message, true);
+  }
+}
+
+function iniciarEdicao(id) {
+  const r = registros.find(x=>x.id===id);
+  if (!r) return;
+  idEdicao = id;
+  $('data').value = r.data;
+  $('entrada').value = r.entrada;
+  $('saida').value = r.saida;
+  $('observacoes').value = r.observacoes || '';
+  $('tituloFormulario').textContent = 'Editar registro';
+  $('gravar').textContent = 'Salvar alterações';
+  $('cancelar').hidden = false;
+  $('data').scrollIntoView({behavior:'smooth',block:'center'});
+}
+
+function cancelarEdicao() {
+  idEdicao = null;
+  $('data').value = hojeISO();
+  $('entrada').value = '';
+  $('saida').value = '';
+  $('observacoes').value = '';
+  $('tituloFormulario').textContent = 'Registrar horário';
+  $('gravar').textContent = 'Gravar registro';
+  $('cancelar').hidden = true;
+}
+
+async function gravar() {
+  try {
+    if (!carregado) throw Error('Conecte-se e carregue os registros antes de gravar.');
+    const data = $('data').value;
+    const entrada = $('entrada').value;
+    const saida = $('saida').value;
+    minutos(entrada); minutos(saida);
+    if (!data) throw Error('Informe a data.');
+    if (minutos(saida) <= minutos(entrada)) throw Error('A saída deve ser posterior à entrada.');
+    if (!idEdicao && registros.some(r=>r.data===data))
+      throw Error('Já existe registro nessa data. Use Editar no histórico.');
+    status('Salvando...');
+    const resposta = await jsonp(parametros('salvar',{
+      id:idEdicao || '', data, entrada, saida,
+      observacoes:$('observacoes').value.trim()
+    }));
+    if (!resposta.ok) throw Error(resposta.erro || 'Falha ao salvar.');
+    cancelarEdicao();
+    await conectar();
+  } catch(e) { status(e.message,true); }
+}
+
+async function excluir(id) {
+  const r = registros.find(x=>x.id===id);
+  if (!r || !confirm('Excluir o registro de '+dataBR(r.data)+'?')) return;
+  try {
+    status('Excluindo...');
+    const resposta = await jsonp(parametros('excluir',{id}));
+    if (!resposta.ok) throw Error(resposta.erro || 'Falha ao excluir.');
+    await conectar();
+  } catch(e) { status(e.message,true); }
+}
+
+function intervaloSemana(iso) {
+  const d = new Date(iso+'T12:00:00');
+  const dia = (d.getDay()+6)%7;
+  const inicio = deslocarData(iso,-dia);
+  return [inicio,deslocarData(inicio,6)];
+}
+function renderizar() {
+  const hoje = hojeISO();
+  const mes = $('mes').value || hoje.slice(0,7);
+  const [ano,mm] = mes.split('-').map(Number);
+  const inicioMes = `${mes}-01`;
+  const fimMes = `${mes}-${String(new Date(ano,mm,0).getDate()).padStart(2,'0')}`;
+  const [iniSem,fimSem] = intervaloSemana(hoje);
+  const meta = jornadaMin();
+
+  const soma = lista => lista.reduce((t,r)=>t+duracao(r),0);
+  const doDia = registros.filter(r=>r.data===hoje);
+  const daSemana = registros.filter(r=>r.data>=iniSem && r.data<=fimSem);
+  const doMes = registros.filter(r=>r.data>=inicioMes && r.data<=fimMes);
+  $('totalHoje').textContent = formatar(soma(doDia));
+  $('totalSemana').textContent = formatar(soma(daSemana));
+  $('totalMes').textContent = formatar(soma(doMes));
+  $('saldoMes').textContent = formatar(soma(doMes)-meta*doMes.length);
+  $('resumoSemana').textContent = formatar(soma(daSemana));
+  $('periodoSemana').textContent = dataBR(iniSem)+' a '+dataBR(fimSem);
+  $('saldoSemana').textContent = 'Saldo sobre os dias registrados: '+
+    formatar(soma(daSemana)-meta*daSemana.length);
+  $('resumoMes').textContent = formatar(soma(doMes));
+  $('periodoMes').textContent = mes;
+  $('diasMes').textContent = doMes.length+' dia(s) registrado(s). Saldo calculado apenas sobre dias com registro.';
+
+  const inicioFiltro = $('inicio').value;
+  const fimFiltro = $('fim').value;
+  const lista = [...registros].filter(r=>
+    (!inicioFiltro || r.data>=inicioFiltro) && (!fimFiltro || r.data<=fimFiltro)
+  ).sort((a,b)=>b.data.localeCompare(a.data));
+
+  const tbody = $('historico');
+  tbody.replaceChildren();
+  if (!lista.length) {
+    const tr = tbody.insertRow(), td=tr.insertCell();
+    td.colSpan=6; td.className='empty'; td.textContent='Nenhum registro encontrado.';
+  } else {
+    lista.forEach(r=>{
+      const tr=tbody.insertRow();
+      [dataBR(r.data),r.entrada,r.saida,formatar(duracao(r)),r.observacoes].forEach(v=>{
+        const td=tr.insertCell(); td.textContent=v;
+      });
+      const td=tr.insertCell();
+      const editar=document.createElement('button');
+      editar.className='secondary'; editar.textContent='Editar';
+      editar.onclick=()=>iniciarEdicao(r.id);
+      const excluirBtn=document.createElement('button');
+      excluirBtn.className='danger'; excluirBtn.textContent='Excluir';
+      excluirBtn.onclick=()=>excluir(r.id);
+      td.append(editar,excluirBtn);
+    });
+  }
+}
+
+$('conectar').onclick=conectar;
+$('gravar').onclick=gravar;
+$('cancelar').onclick=cancelarEdicao;
+$('filtrar').onclick=renderizar;
+$('limparFiltro').onclick=()=>{
+  $('inicio').value=''; $('fim').value=''; renderizar();
+};
+$('mes').onchange=renderizar;
+$('jornada').onchange=()=>{
+  try { jornadaMin(); renderizar(); }
+  catch(e) { status('Jornada inválida. Use HH:MM.',true); }
+};
+$('salvarConfig').onclick=()=>{
+  try {
+    jornadaMin();
+    localStorage.setItem('controleUrl',$('apiUrl').value.trim());
+    localStorage.setItem('controleJornada',$('jornada').value.trim());
+    status('URL e jornada salvas neste dispositivo.');
+  } catch(e) { status('Jornada inválida. Use HH:MM.',true); }
+};
+
+$('apiUrl').value=localStorage.getItem('controleUrl') || '';
+$('jornada').value=localStorage.getItem('controleJornada') || '08:00';
+$('data').value=hojeISO();
+$('mes').value=hojeISO().slice(0,7);
+renderizar();
+</script>
+</body>
+</html>
